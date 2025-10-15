@@ -1,0 +1,389 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Markdown 简历渲染器</title>
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <style>
+        :root {
+            --base-font-size: 10px;
+            --name-font-size: 18px;
+            --section-header-size: 18px;
+            --sub-header-size: 14px;
+            --sidebar-bg-color: #2c3e50;
+            /* 【新增】主题颜色变量 */
+            --accent-color: #429dda;
+            --accent-color-light: rgba(52, 152, 219, 0.15); /* 主题色的浅色版，由 JS 动态生成 */
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
+            background-color: #f0f2f5;
+            margin: 0;
+            padding: 18px;
+        }
+        .container {
+             max-width: 900px;
+             margin-left: auto;
+             margin-right: auto;
+        }
+
+        .controls {
+            margin-bottom: 18px;
+            padding: 18px;
+            background-color: #fff;
+            border-radius: 8px;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.08);
+            display: flex; 
+            align-items: center;
+            gap: 30px; 
+        }
+        .file-controls {
+            display: flex;
+            flex-direction: column;
+            gap: 15px; 
+            width: 180px; 
+            flex-shrink: 0;
+        }
+        .file-controls button {
+            background-color: #2c3e50;
+            color: #fff;
+            border: none;
+            padding: 10px 25px;
+            border-radius: 5px;
+            font-size: 14px;
+            cursor: pointer;
+            transition: background-color 0.3s ease;
+            margin: 0;
+            width: 100%;
+        }
+        .file-controls button:hover { background-color: #34495e; }
+        .file-controls button.secondary { background-color: var(--accent-color); } /* 改为使用主题色 */
+        .file-controls button.secondary:hover { background-color: #2980b9; }
+
+        .style-controls {
+            flex-grow: 1;
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 18px 30px;
+        }
+        .slider-group { display: flex; align-items: center; gap: 10px; }
+        .slider-group label { flex-shrink: 0; font-size: 14px; color: #34495e; }
+        .slider-group input[type="range"] { width: 100%; cursor: pointer; }
+        .slider-group input[type="color"] {
+            width: 100%;
+            height: 35px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            cursor: pointer;
+            padding: 2px;
+        }
+        .slider-group .slider-value { font-size: 14px; font-weight: bold; color: #2c3e50; min-width: 35px; text-align: right; }
+
+        .resume-container {
+            display: flex;
+            min-height: 1123px;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+            border-radius: 8px;
+            overflow: hidden;
+            font-size: var(--base-font-size);
+            background: linear-gradient(to right, var(--sidebar-bg-color) 33%, #fff 33%);
+        }
+
+        .sidebar {
+            width: 33%;
+            color: #ecf0f1;
+            padding: 40px 30px;
+            box-sizing: border-box;
+        }
+        
+        .main-content { 
+            width: 67%; 
+            padding: 40px 30px; 
+            box-sizing: border-box;
+            background-color: #fff;
+        }
+        
+        .placeholder { display: flex; justify-content: center; align-items: center; height: 100%; font-size: 18px; color: #bdc3c7; text-align: center; }
+        .main-content .placeholder { color: #7f8c8d; }
+
+        /* --- 【修改】以下元素全部使用主题色变量 --- */
+        .sidebar img { width: 100px; height: 100px; border-radius: 50%; border: 4px solid var(--accent-color); display: block; margin: 0 auto 18px; }
+        .sidebar p, .sidebar li { line-height: 1.7; color: #bdc3c7; }
+        .sidebar a { color: #ecf0f1; text-decoration: none; word-break: break-all; }
+        .sidebar a:hover { text-decoration: underline; }
+        .sidebar ul { padding-left: 18px; }
+        .sidebar h2 { color: #fff; border-bottom: 2px solid var(--accent-color); padding-bottom: 8px; margin-top: 30px; text-align: center; font-size: var(--name-font-size); }
+        .sidebar h3 { color: #fff; border-bottom: 2px solid var(--accent-color); padding-bottom: 8px; margin-top: 30px; font-size: var(--sub-header-size); }
+        
+        .main-content h2 { color: #2c3e50; border-bottom: 3px solid var(--accent-color); padding-bottom: 10px; margin-top: 0; margin-bottom: 25px; font-size: var(--section-header-size); }
+        .main-content h3 { color: #34495e; margin-bottom: 8px; font-size: var(--sub-header-size); }
+        .main-content h3 + p { margin-top: -5px; margin-bottom: 15px; }
+        .main-content ul { padding-left: 18px; margin-top: 10px; }
+        .main-content li { margin-bottom: 10px; line-height: 1.6; color: #34495e; }
+        .main-content code { background-color: var(--accent-color-light); color: var(--accent-color); padding: 4px 8px; border-radius: 10px; font-size: 0.85em; font-weight: bold; margin-right: 8px; }
+        .main-content strong { display: inline-block; margin-right: 10px; }
+
+        @media print {
+            * {
+                -webkit-print-color-adjust: exact !important;
+                print-color-adjust: exact !important;
+            }
+            body { 
+                padding: 0; 
+                margin: 0;
+            }
+            .container { 
+                max-width: 100%; 
+                margin: 0;
+            }
+            .controls { 
+                display: none; 
+            }
+            .resume-container { 
+                width: 100%; 
+                height: 100%;
+                box-shadow: none; 
+                border-radius: 0; 
+                margin: 0;
+                background: none !important;
+            }
+            .sidebar {
+                background-color: var(--sidebar-bg-color) !important;
+            }
+            .main-content {
+                background-color: #fff !important;
+            }
+        }
+    </style>
+</head>
+<body>
+    
+    <div class="container">
+        <div class="controls">
+            <div class="file-controls">
+                <button id="load-md-btn">加载 MD 简历</button>
+                <button id="save-template-btn" class="secondary">获取 MD 模板</button>
+                <input type="file" id="md-file-input" accept=".md,.markdown" style="display: none;">
+            </div>
+            <div class="style-controls">
+                <div class="slider-group">
+                    <label for="base-font-slider">正文:</label>
+                    <input type="range" id="base-font-slider" data-variable="--base-font-size" min="10" max="18" step="1" value="10">
+                    <span class="slider-value">10px</span>
+                </div>
+                <div class="slider-group">
+                    <label for="name-font-slider">一级标题:</label>
+                    <input type="range" id="name-font-slider" data-variable="--name-font-size" min="18" max="30" step="1" value="18">
+                    <span class="slider-value">18px</span>
+                </div>
+                 <div class="slider-group">
+                    <label for="section-header-slider">二级标题:</label>
+                    <input type="range" id="section-header-slider" data-variable="--section-header-size" min="18" max="30" step="1" value="18">
+                    <span class="slider-value">18px</span>
+                </div>
+                <div class="slider-group">
+                    <label for="sub-header-slider">三级标题:</label>
+                    <input type="range" id="sub-header-slider" data-variable="--sub-header-size" min="14" max="28" step="1" value="14">
+                    <span class="slider-value">14px</span>
+                </div>
+                <div class="slider-group">
+                    <label for="sidebar-color-picker">侧栏背景:</label>
+                    <input type="color" id="sidebar-color-picker" value="#2c3e50">
+                </div>
+                 <div class="slider-group">
+                    <label for="accent-color-picker">主题颜色:</label>
+                    <input type="color" id="accent-color-picker" value="#3498db">
+                </div>
+            </div>
+        </div>
+
+        <div id="resume-container" class="resume-container">
+            <aside id="sidebar-container" class="sidebar">
+                 <div class="placeholder">个人信息区域</div>
+            </aside>
+            <main id="main-content-container" class="main-content">
+                 <div class="placeholder">工作经验与项目经验区域<br></div>
+                </main>
+        </div>
+    </div>
+    
+    <script>
+        const markdownTemplate = `---
+title: 简历模板
+---
+
+<div class="flex">
+<div className="side">
+![头像](https://path/to/your/avatar.jpg)
+### 姓名 - 意向岗位
+- 介绍自己，展示你的热情与专业。
+- 还有呢
+
+### 基本信息
+
+- 手机: 138****8888
+- Github：https://github.com/your-username
+- 个人作品: https://your-portfolio.com
+- 邮箱: your.email@example.com
+
+### 教育背景
+
+**某品大学** (2020.9 - 2024.6)
+计算机科学与技术 (本科)
+
+### 技能特长
+
+1.  熟练掌握 HTML5/CSS3/JavaScript
+2.  熟练掌握 React/Vue.js 及其生态
+
+### 更多技能
+
+- 技能点 A
+- 技能点 B
+
+</div>
+<div>
+
+## 工作经验
+
+### A 科技公司 (2024.7-至今)
+
+**前端开发部** \`前端工程师\` \`组件库开发\`
+
+1.  负责 XX 核心业务线的需求开发和技术优化，使用 React 和 TypeScript。
+2.  主导设计并开发了公司的通用组件库，提升了 30% 的开发效率。
+
+
+### B 互联网公司 - (2023.7-2023.8)
+
+**创新业务部** \`实习生\` \`小程序开发\`
+
+1.  参与开发了一款百万级用户的微信小程序，主要负责个人中心和活动页面。
+2.  使用 \`Vue.js\` 和 \`ECharts\` 实现了数据可视化看板。
+
+
+## 项目经验
+
+### 在线简历生成器
+
+一个在线 Markdown 简历生成器，可一键导出 PDF。
+
+**项目难点** \`独立开发者\`
+
+1.  负责项目从 0 到 1 的整体设计、开发和部署。
+2.  实现了客户端 Markdown 到 HTML 的实时渲染。
+3.  通过优化打印样式，实现了高质量的 PDF 导出功能。
+
+
+### 低代码平台
+
+一个通过拖拽组件生成页面的低代码平台。
+
+**项目难点** \`核心开发者\`
+
+1.  设计了组件的 \`JSON Schema\` 协议，支持动态渲染。
+2.  实现了复杂的拖拽、嵌套和层级调整逻辑。
+
+</div>
+</div>`;
+
+        document.addEventListener('DOMContentLoaded', function() {
+            const loadBtn = document.getElementById('load-md-btn');
+            const saveBtn = document.getElementById('save-template-btn');
+            const fileInput = document.getElementById('md-file-input');
+            const sidebarContainer = document.getElementById('sidebar-container');
+            const mainContentContainer = document.getElementById('main-content-container');
+            const resumeContainer = document.getElementById('resume-container');
+            const sliders = document.querySelectorAll('.style-controls input[type="range"]');
+            
+            const sidebarColorPicker = document.getElementById('sidebar-color-picker');
+            // 【新增】获取主题颜色选择器
+            const accentColorPicker = document.getElementById('accent-color-picker');
+
+            // 【新增】一个将 HEX 颜色转换为 RGBA 的辅助函数
+            function hexToRgba(hex, alpha = 1) {
+                hex = hex.replace(/^#/, '');
+                if (hex.length === 3) {
+                    hex = hex.split('').map(char => char + char).join('');
+                }
+                const bigint = parseInt(hex, 16);
+                const r = (bigint >> 16) & 255;
+                const g = (bigint >> 8) & 255;
+                const b = bigint & 255;
+                return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+            }
+            
+            sliders.forEach(slider => {
+                const valueSpan = slider.nextElementSibling;
+                const cssVariable = slider.dataset.variable;
+                if (valueSpan) valueSpan.textContent = slider.value + 'px';
+                slider.addEventListener('input', (event) => {
+                    const newValue = event.target.value;
+                    resumeContainer.style.setProperty(cssVariable, newValue + 'px');
+                    if(valueSpan) valueSpan.textContent = newValue + 'px';
+                });
+            });
+
+            sidebarColorPicker.addEventListener('input', (event) => {
+                resumeContainer.style.setProperty('--sidebar-bg-color', event.target.value);
+            });
+
+            // 【新增】为主题颜色选择器添加事件监听
+            accentColorPicker.addEventListener('input', (event) => {
+                const newColor = event.target.value;
+                // 1. 设置主颜色
+                resumeContainer.style.setProperty('--accent-color', newColor);
+                // 2. 计算并设置浅色版本
+                const lightColor = hexToRgba(newColor, 0.15);
+                resumeContainer.style.setProperty('--accent-color-light', lightColor);
+            });
+
+            function renderResume(markdownText) {
+                const sideRegex = /<div className="side">([\s\S]*?)<\/div>/;
+                const mainRegex = /<\/div>\s*<div>([\s\S]*?)<\/div>/;
+                const sideMatch = markdownText.match(sideRegex);
+                const mainMatch = markdownText.match(mainRegex);
+                sidebarContainer.innerHTML = '';
+                mainContentContainer.innerHTML = '';
+
+                if (sideMatch && sideMatch[1]) {
+                    sidebarContainer.innerHTML = marked.parse(sideMatch[1].trim());
+                } else {
+                    sidebarContainer.innerHTML = '<div class="placeholder">侧边栏内容解析失败，请检查 MD 文件格式！</div>';
+                }
+                if (mainMatch && mainMatch[1]) {
+                    mainContentContainer.innerHTML = marked.parse(mainMatch[1].trim());
+                } else {
+                    mainContentContainer.innerHTML = '<div class="placeholder">主内容解析失败，请检查 MD 文件格式！</div>';
+                }
+            }
+            
+            loadBtn.addEventListener('click', () => fileInput.click());
+
+            fileInput.addEventListener('change', (event) => {
+                const file = event.target.files[0];
+                if (!file) return;
+                const reader = new FileReader();
+                reader.onload = (e) => renderResume(e.target.result);
+                reader.onerror = () => mainContentContainer.innerHTML = '<div class="placeholder">文件读取失败！</div>';
+                reader.readAsText(file);
+                event.target.value = '';
+            });
+            
+            saveBtn.addEventListener('click', () => {
+                const blob = new Blob([markdownTemplate], { type: 'text/markdown;charset=utf-8' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = 'resume-template.md';
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+            });
+        });
+    </script>
+</body>
+</html>
