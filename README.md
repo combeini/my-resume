@@ -6,6 +6,10 @@
 4. 右键页面,选择打印
 
 #### 备注
-由AI实现,无售后.
+由AI实现,本地渲染,无数据交互和存储,请妥善保管数据,无售后.
 
-<img width="900" height="790" alt="image" src="https://github.com/user-attachments/assets/a0737fe6-b78b-4e56-958d-a27389cb4eb4" />
+- [点击在线试用](https://combeini.github.io/my-resume/)
+- 示例效果
+<img width="913" height="795" alt="image" src="https://github.com/user-attachments/assets/f0ab1346-89e6-49e0-b21f-f6b7bb449128" />
+
+
